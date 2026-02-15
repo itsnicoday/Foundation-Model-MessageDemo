@@ -12,3 +12,5 @@ struct Message: Identifiable, Hashable, Sendable {
     let isUser: Bool
     let text: String
 }
+
+// 뭐야??
