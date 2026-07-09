@@ -10,7 +10,7 @@ import Foundation
 struct Message: Identifiable, Hashable, Sendable {
     let id: UUID = UUID()
     let isUser: Bool
-    let text: String
+    var text: String
 }
 
 // 뭐야??

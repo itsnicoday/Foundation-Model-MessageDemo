@@ -29,24 +29,36 @@ struct MessageView: View {
             } //: HStack
             
         } else {
-            VStack(alignment: .leading, spacing: 0) {
-                if isLoading {
-                    // TODO: ChatGPT 와 같이 생각하는 중이라고 해야할듯?
+            HStack(spacing: 0) {
+                Group {
+                    if isLoading {
+                        HStack(spacing: 6) {
+                            ProgressView()
+                            Text("생각 중...")
+                                .foregroundStyle(.secondary)
+                        }
+                    } else {
+                        Text(message.text)
+                    }
                 }
-                
-                // TODO: Component로 loading 중일때는 loading 표시 하고 메세지를 쫘-악 뿌려주는 느낌으로 아마 Animation 처리를 해야할듯?
-            }
+                .font(.callout)
+                .padding(10)
+                .background(
+                    RoundedRectangle(cornerRadius: 15)
+                        .foregroundStyle(.blue.opacity(0.1))
+                )
+                .padding(5)
+                Spacer()
+            } //: HStack
         }
         
     }
 }
 
-#Preview {
-    MessageView(
-        message: Message(
-            isUser: true,
-            text: "Test Message"
-        ),
-        isLoading: true
-    )
+#Preview("User Message") {
+    MessageView(message: .sampleUser, isLoading: false)
+}
+
+#Preview("Assistant Message") {
+    MessageView(message: .sampleAssistant, isLoading: true)
 }

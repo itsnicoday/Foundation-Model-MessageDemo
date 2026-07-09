@@ -51,6 +51,17 @@ struct SidebarView: View {
     }
 }
 
+#Preview {
+    NavigationStack {
+        SidebarView(
+            selectedChat: .constant(ChatSession.samples.first),
+            chats: ChatSession.samples,
+            onCreateNewChat: {},
+            onDeleteChat: { _ in }
+        )
+    }
+}
+
 // MARK: - Dummy Model
 // Hashable 구현 명시적으로 추가 (안전하게)
 struct ChatSession: Identifiable, Hashable {

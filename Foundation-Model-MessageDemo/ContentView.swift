@@ -8,9 +8,14 @@
 import SwiftUI
 
 struct ContentView: View {
-    @State private var chats: [ChatSession] = []
+    @State private var chats: [ChatSession]
     @State private var selectedChat: ChatSession?
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
+
+    init(chats: [ChatSession] = []) {
+        _chats = State(initialValue: chats)
+        _selectedChat = State(initialValue: chats.first)
+    }
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
@@ -21,18 +26,9 @@ struct ContentView: View {
                 onDeleteChat: deleteChat
             )
         } detail: {
-            if let chat = selectedChat {
-                // TODO: ChatDetailView(chat: chat)
-                VStack {
-                    Text(chat.title)
-                        .font(.largeTitle)
-                    
-                    ScrollView {
-                        ForEach(chat.messages) { message in
-                            MessageView(message: message, isLoading: false)
-                        }
-                    }
-                }
+            if let chat = selectedChat,
+               let index = chats.firstIndex(where: { $0.id == chat.id }) {
+                ChatDetailView(chat: $chats[index])
             } else {
                 Text("Select a conversation")
                     .foregroundColor(.secondary)
@@ -54,6 +50,10 @@ struct ContentView: View {
     }
 }
 
-#Preview {
+#Preview("With Chats") {
+    ContentView(chats: ChatSession.samples)
+}
+
+#Preview("Empty") {
     ContentView()
 }
