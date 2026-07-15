@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project overview
 
-A SwiftUI iOS app (bundle id `com.ho.itsnicoday.Foundation-Model-MessageDemo`) intended to be an on-device chat app powered by Apple's `FoundationModels` framework. The chat UI shell (sidebar + message list + input bar) works, and `Services/ChatModelService.swift` wraps `LanguageModelSession` (one instance per open chat, held as `@State` in `ChatDetailView`). Note: FoundationModels needs no special entitlement, but the integration has only been syntax-checked, never compiled or run on a device — treat it as unverified until someone builds it on a machine with Xcode.
+A SwiftUI iOS app (bundle id `com.ho.itsnicoday.Foundation-Model-MessageDemo`) that is an on-device chat app powered by Apple's `FoundationModels` framework. The chat UI shell (sidebar + message list + input bar) works, and `Services/ChatModelService.swift` wraps `LanguageModelSession` (one instance per open chat, owned by `ChatDetailViewModel`). FoundationModels needs no special entitlement. The integration has been verified working on both the iOS Simulator and a real device (streaming responses render correctly).
 
 Feature roadmap and current status live in `docs/PLAN.md` — check it before deciding what to build next, and keep its status table up to date as features land.
 
@@ -26,12 +26,14 @@ Deployment target is iOS 26.0, Swift 6.0, Universal (iPhone + iPad). Because `Fo
 
 ## Architecture
 
-Plain SwiftUI, no third-party dependencies, no ObservableObject/ViewModel layer yet — views own state directly via `@State`/`@Binding`, and data is in-memory only (nothing persists across launches).
+Plain SwiftUI, no third-party dependencies. There is a lightweight MVVM layer for the chat screen (`ChatDetailViewModel`); everything else still owns state directly via `@State`/`@Binding`. Data is in-memory only (nothing persists across launches).
 
 - `Foundation_Model_MessageDemoApp.swift` — `@main` entry point, loads `ContentView`.
-- `ContentView.swift` — root view. Owns the `[ChatSession]` array and `selectedChat` as `@State`, and is the single source of truth for chat data. Hosts a `NavigationSplitView` (sidebar + detail). The detail pane currently inlines what should be a separate `ChatDetailView` (see the `// TODO: ChatDetailView(chat: chat)` comment) — when building that out, extract it rather than continuing to grow `ContentView`.
+- `ContentView.swift` — root view. Owns the `[ChatSession]` array and `selectedChat` as `@State`, and is the single source of truth for chat data (used by `SidebarView` for the chat list/previews). It does **not** know about `ChatDetailViewModel` — it hands `ChatDetailView` a plain `ChatSession` value plus an `onUpdate: (ChatSession) -> Void` callback, and tags it with `.id(selectedChat.id)` so switching chats gets a fresh view/view-model instance. Hosts a `NavigationSplitView` (sidebar + detail).
 - `Models/Message.swift` — `Message` struct (`isUser: Bool`, `text: String`).
-- `Views/SidebarView.swift` — chat list (create/delete via swipe), and also defines `ChatSession` inline (`id`, `title`, `messages`) — note this model lives here rather than in `Models/`, so check this file (not just `Models/`) when looking for chat-related types.
-- `Views/Components/MessageView.swift` — single message bubble. The `isUser == true` branch renders a bubble; the assistant-reply branch is an empty `VStack` with only TODO comments — assistant messages are not rendered at all yet. `isLoading` is accepted as a param but unused.
-
-When implementing the `FoundationModels` integration, the natural entry points are: a service/session layer that wraps `LanguageModelSession` (doesn't exist yet — will need to be created), invoked from wherever `ContentView`'s chat-sending flow ends up living, with results appended to a `ChatSession`'s `messages` and rendered via the currently-empty assistant branch of `MessageView`.
+- `Models/ChatSession.swift` — `ChatSession` struct (`id`, `title`, `messages`). Previously lived inline in `SidebarView.swift`; moved out.
+- `ViewModels/ChatDetailViewModel.swift` — `@Observable @MainActor` class owned by `ChatDetailView` (created in its `init`, held via `@State`). Holds `chat`, `inputText`, `isLoading`, a private `ChatModelService`, and `sendMessage()`. Whenever `chat` changes it's reported to the parent via the `onUpdate` closure passed into `ChatDetailView`'s init — that's the only path back to `ContentView.chats`.
+  - Known limitation: because `ContentView` recreates `ChatDetailView` (and thus the view model) via `.id()` on chat switch, navigating away mid-stream or with a draft in the input field loses that in-flight state — only what was already synced via `onUpdate` survives. If this needs to persist across chat switches, a view-model cache keyed by chat id (owned by a dedicated store, not by `ContentView` directly) would be the next step.
+- `Views/SidebarView.swift` — chat list (create/delete via swipe). No longer defines `ChatSession` (see `Models/ChatSession.swift`).
+- `Views/ChatDetailView.swift` — message list (`ScrollViewReader` + auto-scroll to the latest message/loading indicator on change) + input bar. Takes `chat: ChatSession` and `onUpdate` in its init, not a `Binding<ChatSession>`.
+- `Views/Components/MessageView.swift` — single message bubble; both the user and assistant branches are implemented, including the `isLoading` "생각 중..." state.

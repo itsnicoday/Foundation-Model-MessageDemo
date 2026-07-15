@@ -9,40 +9,58 @@ import SwiftUI
 
 struct ChatDetailView: View {
 
-    @Binding var chat: ChatSession
+    @State private var viewModel: ChatDetailViewModel
+    private let onUpdate: (ChatSession) -> Void
 
-    @State private var inputText: String = ""
-    @State private var isLoading: Bool = false
-    @State private var service = ChatModelService()
+    init(chat: ChatSession, onUpdate: @escaping (ChatSession) -> Void) {
+        _viewModel = State(initialValue: ChatDetailViewModel(chat: chat))
+        self.onUpdate = onUpdate
+    }
 
     var body: some View {
         VStack(spacing: 0) {
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(chat.messages) { message in
-                        MessageView(message: message, isLoading: false)
-                    }
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(viewModel.chat.messages) { message in
+                            MessageView(message: message, isLoading: false)
+                                .id(message.id)
+                        }
 
-                    if isLoading {
-                        MessageView(
-                            message: Message(isUser: false, text: ""),
-                            isLoading: true
-                        )
+                        if viewModel.isLoading {
+                            MessageView(
+                                message: Message(isUser: false, text: ""),
+                                isLoading: true
+                            )
+                            .id("loading")
+                        }
                     }
+                    .padding(.horizontal, 8)
                 }
-                .padding(.horizontal, 8)
+                .onChange(of: viewModel.chat.messages.count) {
+                    scrollToBottom(proxy: proxy)
+                }
+                .onChange(of: viewModel.chat.messages.last?.text) {
+                    scrollToBottom(proxy: proxy)
+                }
+                .onChange(of: viewModel.isLoading) {
+                    scrollToBottom(proxy: proxy)
+                }
             }
 
             inputBar
         } //: VStack
-        .navigationTitle(chat.title)
+        .navigationTitle(viewModel.chat.title)
         .navigationBarTitleDisplayMode(.inline)
+        .onChange(of: viewModel.chat) {
+            onUpdate(viewModel.chat)
+        }
     }
 
     // MARK: - Input Bar
     private var inputBar: some View {
         HStack(spacing: 8) {
-            TextField("Message", text: $inputText)
+            TextField("Message", text: $viewModel.inputText)
                 .textFieldStyle(.plain)
                 .padding(10)
                 .background(
@@ -50,57 +68,27 @@ struct ChatDetailView: View {
                         .foregroundStyle(.gray.opacity(0.15))
                 )
 
-            Button(action: sendMessage) {
+            Button(action: viewModel.sendMessage) {
                 Image(systemName: "arrow.up.circle.fill")
                     .font(.title)
             }
-            .disabled(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .disabled(viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         } //: HStack
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
     }
 
-    private func sendMessage() {
-        let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
-
-        chat.messages.append(Message(isUser: true, text: text))
-        inputText = ""
-
-        if let reason = service.unavailableReason {
-            chat.messages.append(Message(isUser: false, text: reason))
-            return
-        }
-
-        isLoading = true
-        Task { @MainActor in
-            var assistantIndex: Int?
-            do {
-                for try await partial in service.streamResponse(to: text) {
-                    if let index = assistantIndex {
-                        chat.messages[index].text = partial
-                    } else {
-                        isLoading = false
-                        assistantIndex = chat.messages.count
-                        chat.messages.append(Message(isUser: false, text: partial))
-                    }
-                }
-            } catch {
-                isLoading = false
-                let errorText = "응답 생성에 실패했어요: \(error.localizedDescription)"
-                if let index = assistantIndex {
-                    chat.messages[index].text = errorText
-                } else {
-                    chat.messages.append(Message(isUser: false, text: errorText))
-                }
-            }
+    private func scrollToBottom(proxy: ScrollViewProxy) {
+        let target: AnyHashable? = viewModel.isLoading ? "loading" : viewModel.chat.messages.last?.id
+        guard let target else { return }
+        withAnimation {
+            proxy.scrollTo(target, anchor: .bottom)
         }
     }
 }
 
 #Preview {
-    @Previewable @State var chat = ChatSession.sample
     NavigationStack {
-        ChatDetailView(chat: $chat)
+        ChatDetailView(chat: .sample, onUpdate: { _ in })
     }
 }

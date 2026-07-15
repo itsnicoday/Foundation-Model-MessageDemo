@@ -39,7 +39,7 @@ final class ChatModelService {
             let task = Task {
                 do {
                     for try await partial in session.streamResponse(to: prompt) {
-                        continuation.yield(partial)
+                        continuation.yield(partial.content)
                     }
                     continuation.finish()
                 } catch {

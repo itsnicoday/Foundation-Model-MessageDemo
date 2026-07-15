@@ -1,7 +1,7 @@
 # Foundation-Model-MessageDemo 기획서
 
 > Apple FoundationModels(온디바이스 LLM)를 활용한 채팅 앱 데모.
-> 최종 수정: 2026-07-09
+> 최종 수정: 2026-07-16
 
 ## 1. 목표
 
@@ -17,8 +17,8 @@
 | 채팅 상세 화면 + 입력 바 | ✅ 완료 (응답은 임시 에코) |
 | 사용자 메시지 말풍선 | ✅ 완료 |
 | 어시스턴트 메시지 말풍선 | ✅ 완료 |
-| FoundationModels 응답 생성 | 🔨 구현됨 (실기기 검증 전) |
-| 응답 스트리밍 (타자 치듯 출력) | 🔨 구현됨 (실기기 검증 전) |
+| FoundationModels 응답 생성 | ✅ 완료 (실기기 검증됨) |
+| 응답 스트리밍 (타자 치듯 출력) | ✅ 완료 (실기기 검증됨) |
 | 로딩 상태 표시 ("생각 중...") | ✅ 완료 |
 | 채팅 영속성 (재시작 후 유지) | ❌ 미구현 |
 
@@ -40,22 +40,43 @@ NavigationSplitView
 - [x] 어시스턴트 말풍선 UI 구현 (`MessageView`의 빈 분기)
 - [x] 로딩 상태 표시 ("생각 중..." + ProgressView, 응답은 1초 딜레이 임시 에코)
 
-### Phase 2 — FoundationModels 연동 (핵심)
+### Phase 2 — FoundationModels 연동 (핵심) ✅ (2026-07-16)
 - [x] `LanguageModelSession`을 감싸는 서비스 계층 생성 (`Services/ChatModelService.swift`)
 - [x] 전송 → 온디바이스 모델 응답 → 메시지 추가 플로우 연결 (임시 에코 제거)
 - [x] 모델 사용 불가 상황 처리 (미지원 기기/AI 꺼짐/모델 준비 중 → 안내 메시지)
 - [x] 응답 스트리밍 처리 (`ChatModelService.streamResponse`, 첫 조각 도착 시 로딩 인디케이터 → 텍스트로 전환, 이후 누적 텍스트로 갱신)
-- [ ] 실기기(Apple Intelligence 지원)에서 동작 검증 — 이 머신엔 SDK가 없어 문법 체크만 완료
-      (`streamResponse(to:)`가 매 조각마다 "누적 전체 텍스트"를 준다는 가정하에 구현 — 델타 방식이면 조정 필요)
-- [ ] (알려진 제약) 채팅 이탈 후 복귀 시 모델 컨텍스트 초기화 — transcript 복원은 추후 검토
+- [x] 시뮬레이터에서 빌드 및 동작 확인 (`streamResponse(to:)`가 `Snapshot.content`로 누적 전체 텍스트를 준다는 것 확인, 타입 불일치 수정)
+- [x] 실기기(Apple Intelligence 지원)에서 동작 검증 완료
+- [ ] (알려진 제약) 채팅 이탈 후 복귀 시 모델 컨텍스트 초기화 — 해소 로드맵은 Phase 3 "채팅 영속성 & 모델 컨텍스트 복원" 참고
 
 ### Phase 3 — 완성도
-- [ ] 채팅 영속성 (SwiftData 검토)
+- [ ] 채팅 영속성 & 모델 컨텍스트 복원 (우선순위 순 — "나갔다 들어오면 세션이 끊긴다"는 물리적 한계가 아니라
+      지금의 `.id()` 리셋 아키텍처 때문이므로, 앱 실행 중/재시작 후를 나눠서 단계적으로 해소)
+  - [ ] **0. 뷰모델 캐싱 계층**: 채팅 id별로 `ChatDetailViewModel`(과 내부 `LanguageModelSession`)을 계속
+        살려두는 store 도입. 앱이 켜져 있는 동안은 다른 채팅 갔다가 돌아와도 스트리밍/컨텍스트가
+        끊기지 않음 — SwiftData나 별도 저장 없이 가장 저렴하게 해결되는 부분. (Phase 2·3의
+        `ChatDetailViewModel` 항목에서 알려진 제약으로 이미 언급됨)
+  - [ ] **1. SwiftData로 메시지 영속화**: `ChatSession.messages`를 디스크에 저장해 앱 재시작 후에도
+        대화 내역이 화면에 남도록 함. 단, 이것만으로는 화면에 보이는 텍스트만 복원되고 모델 자체의
+        컨텍스트는 복원되지 않음.
+  - [ ] **2. `Transcript` 저장/복원**: FoundationModels의 `Transcript`(Codable 여부·정확한 API는 베타라
+        Xcode에서 재확인 필요)를 SwiftData 필드로 같이 저장했다가, 채팅 재진입 시
+        `LanguageModelSession(transcript:)` 형태로 재구성 — 앱 재시작 후에도 모델이 이전 대화를
+        "기억"하게 하는 더 충실한 방법.
+  - [ ] **3. 롤링 요약(대화 압축)**: 대화가 길어져 컨텍스트 윈도우 한계에 걸리기 시작하면, 일정 턴마다
+        모델에게 스스로 요약을 시켜 그 요약을 다음 세션의 instructions로 주입. 대화 길이가 실제
+        문제가 될 때 추가할 나중 단계 최적화 (지금 단계에서는 우선순위 낮음).
 - [ ] 채팅 제목 자동 생성 (첫 메시지 기반)
-- [ ] `ChatSession`을 `Models/`로 이동 등 코드 정리
+- [x] `ChatSession`을 `Models/`로 이동 (기존 `SidebarView.swift` 내부 정의 제거)
+- [x] `ChatDetailViewModel` 도입 (`@Observable`, `ViewModels/`) — `ChatDetailView`가 직접 소유하고
+      `chat`이 바뀔 때마다 `onUpdate` 콜백으로 `ContentView.chats`에 반영. `ContentView`는
+      `ChatDetailViewModel` 타입을 모르며 `ChatSession` + 콜백만 다룸.
+      (알려진 제약: 다른 채팅으로 이동했다가 돌아오면 `ChatDetailView`가 `.id()` 리셋으로 새로
+      생성되어, 스트리밍 중이던 응답이나 입력 draft는 유지되지 않음 — 필요해지면 뷰모델 캐싱 계층 검토)
+- [x] 메시지 목록 자동 스크롤 (`ScrollViewReader`, 새 메시지/로딩 상태 변경 시 하단으로 스크롤)
 
 ## 5. 제약 / 참고
 
 - **배포 타겟 iOS 26.0, Swift 6.0** — FoundationModels는 Apple Intelligence 지원 기기 필요
-- 개발 머신에는 Xcode 없음 → 빌드/실행 검증은 별도 머신에서 진행
-- FoundationModels는 별도 entitlement 없이 사용 가능한 것으로 알려짐 — 실기기 검증 시 확인
+- Xcode로 빌드 확인됨 (iOS 26.5 시뮬레이터, `xcodebuild ... build` 성공), 실기기 동작도 검증 완료
+- FoundationModels는 별도 entitlement 없이 사용 가능함을 실기기에서 확인

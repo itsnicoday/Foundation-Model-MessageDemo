@@ -26,22 +26,26 @@ struct ContentView: View {
                 onDeleteChat: deleteChat
             )
         } detail: {
-            if let chat = selectedChat,
-               let index = chats.firstIndex(where: { $0.id == chat.id }) {
-                ChatDetailView(chat: $chats[index])
+            if let selectedChat, let index = chats.firstIndex(where: { $0.id == selectedChat.id }) {
+                ChatDetailView(chat: chats[index]) { updated in
+                    if let index = chats.firstIndex(where: { $0.id == updated.id }) {
+                        chats[index] = updated
+                    }
+                }
+                .id(selectedChat.id)
             } else {
                 Text("Select a conversation")
                     .foregroundColor(.secondary)
             }
         }
     }
-    
+
     private func createNewChat() {
         let newChat = ChatSession(title: "New Chat \(chats.count + 1)", messages: [])
         chats.append(newChat)
         selectedChat = newChat
     }
-    
+
     private func deleteChat(at offsets: IndexSet) {
         chats.remove(atOffsets: offsets)
         if chats.isEmpty {
