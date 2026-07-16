@@ -8,9 +8,15 @@
 import Foundation
 
 struct ChatSession: Identifiable, Hashable {
-    let id = UUID()
+    let id: UUID
     var title: String
     var messages: [Message]
+
+    init(id: UUID = UUID(), title: String, messages: [Message]) {
+        self.id = id
+        self.title = title
+        self.messages = messages
+    }
 
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
