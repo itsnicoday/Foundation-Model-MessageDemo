@@ -8,31 +8,22 @@
 import SwiftUI
 
 struct ContentView: View {
-    @State private var chats: [ChatSession]
-    @State private var selectedChat: ChatSession?
+    @Environment(ChatViewModelStore.self) private var chatStore
+    @State private var selectedChatID: ChatSession.ID?
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
-
-    init(chats: [ChatSession] = []) {
-        _chats = State(initialValue: chats)
-        _selectedChat = State(initialValue: chats.first)
-    }
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             SidebarView(
-                selectedChat: $selectedChat,
-                chats: chats,
+                selectedChatID: $selectedChatID,
+                chats: chatStore.chats,
                 onCreateNewChat: createNewChat,
-                onDeleteChat: deleteChat
+                onDeleteChat: chatStore.deleteChat
             )
         } detail: {
-            if let selectedChat, let index = chats.firstIndex(where: { $0.id == selectedChat.id }) {
-                ChatDetailView(chat: chats[index]) { updated in
-                    if let index = chats.firstIndex(where: { $0.id == updated.id }) {
-                        chats[index] = updated
-                    }
-                }
-                .id(selectedChat.id)
+            if let selectedChatID, chatStore.viewModel(for: selectedChatID) != nil {
+                ChatDetailView(chatID: selectedChatID)
+                    .id(selectedChatID)
             } else {
                 Text("Select a conversation")
                     .foregroundColor(.secondary)
@@ -41,23 +32,20 @@ struct ContentView: View {
     }
 
     private func createNewChat() {
-        let newChat = ChatSession(title: "New Chat \(chats.count + 1)", messages: [])
-        chats.append(newChat)
-        selectedChat = newChat
-    }
-
-    private func deleteChat(at offsets: IndexSet) {
-        chats.remove(atOffsets: offsets)
-        if chats.isEmpty {
-            selectedChat = nil
-        }
+        let newChat = chatStore.createChat(title: "New Chat \(chatStore.chats.count + 1)")
+        selectedChatID = newChat.id
     }
 }
 
 #Preview("With Chats") {
-    ContentView(chats: ChatSession.samples)
+    let store = ChatViewModelStore()
+    store.createChat(title: "SwiftUI 질문")
+    store.createChat(title: "두 번째 채팅")
+    return ContentView()
+        .environment(store)
 }
 
 #Preview("Empty") {
     ContentView()
+        .environment(ChatViewModelStore())
 }

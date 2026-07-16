@@ -8,16 +8,16 @@
 import SwiftUI
 
 struct SidebarView: View {
-    @Binding var selectedChat: ChatSession?
+    @Binding var selectedChatID: ChatSession.ID?
     let chats: [ChatSession]
     var onCreateNewChat: () -> Void
     var onDeleteChat: (IndexSet) -> Void
 
     var body: some View {
-        List(selection: $selectedChat) {
+        List(selection: $selectedChatID) {
             Section(header: Text("Chats")) {
                 ForEach(chats) { chat in
-                    NavigationLink(value: chat) {
+                    NavigationLink(value: chat.id) {
                         VStack(alignment: .leading) {
                             Text(chat.title)
                                 .font(.headline)
@@ -54,7 +54,7 @@ struct SidebarView: View {
 #Preview {
     NavigationStack {
         SidebarView(
-            selectedChat: .constant(ChatSession.samples.first),
+            selectedChatID: .constant(ChatSession.samples.first?.id),
             chats: ChatSession.samples,
             onCreateNewChat: {},
             onDeleteChat: { _ in }

@@ -8,13 +8,22 @@
 import SwiftUI
 
 struct ChatDetailView: View {
+    @Environment(ChatViewModelStore.self) private var store
+    let chatID: ChatSession.ID
+
+    var body: some View {
+        if let viewModel = store.viewModel(for: chatID) {
+            ChatDetailContentView(viewModel: viewModel)
+        }
+    }
+}
+
+struct ChatDetailContentView: View {
 
     @State private var viewModel: ChatDetailViewModel
-    private let onUpdate: (ChatSession) -> Void
 
-    init(chat: ChatSession, onUpdate: @escaping (ChatSession) -> Void) {
-        _viewModel = State(initialValue: ChatDetailViewModel(chat: chat))
-        self.onUpdate = onUpdate
+    init(viewModel: ChatDetailViewModel) {
+        _viewModel = State(initialValue: viewModel)
     }
 
     var body: some View {
@@ -52,9 +61,6 @@ struct ChatDetailView: View {
         } //: VStack
         .navigationTitle(viewModel.chat.title)
         .navigationBarTitleDisplayMode(.inline)
-        .onChange(of: viewModel.chat) {
-            onUpdate(viewModel.chat)
-        }
     }
 
     // MARK: - Input Bar
@@ -89,6 +95,6 @@ struct ChatDetailView: View {
 
 #Preview {
     NavigationStack {
-        ChatDetailView(chat: .sample, onUpdate: { _ in })
+        ChatDetailContentView(viewModel: ChatDetailViewModel(chat: .sample))
     }
 }
