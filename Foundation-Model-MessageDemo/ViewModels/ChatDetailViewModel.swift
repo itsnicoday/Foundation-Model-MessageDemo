@@ -17,9 +17,11 @@ final class ChatDetailViewModel {
     var isLoading: Bool = false
 
     private let service = ChatModelService()
+    private let persistence: ChatPersistenceService
 
-    init(chat: ChatSession) {
+    init(chat: ChatSession, persistence: ChatPersistenceService) {
         self.chat = chat
+        self.persistence = persistence
     }
 
     var unavailableReason: String? { service.unavailableReason }
@@ -28,11 +30,15 @@ final class ChatDetailViewModel {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
 
-        chat.messages.append(Message(isUser: true, text: text))
+        let userMessage = Message(isUser: true, text: text)
+        chat.messages.append(userMessage)
+        persistence.appendMessage(userMessage, toChatID: chat.id)
         inputText = ""
 
         if let reason = service.unavailableReason {
-            chat.messages.append(Message(isUser: false, text: reason))
+            let errorMessage = Message(isUser: false, text: reason)
+            chat.messages.append(errorMessage)
+            persistence.appendMessage(errorMessage, toChatID: chat.id)
             return
         }
 
@@ -49,13 +55,19 @@ final class ChatDetailViewModel {
                         chat.messages.append(Message(isUser: false, text: partial))
                     }
                 }
+                if let index = assistantIndex {
+                    persistence.appendMessage(chat.messages[index], toChatID: chat.id)
+                }
             } catch {
                 isLoading = false
                 let errorText = "응답 생성에 실패했어요: \(error.localizedDescription)"
                 if let index = assistantIndex {
                     chat.messages[index].text = errorText
+                    persistence.appendMessage(chat.messages[index], toChatID: chat.id)
                 } else {
-                    chat.messages.append(Message(isUser: false, text: errorText))
+                    let errorMessage = Message(isUser: false, text: errorText)
+                    chat.messages.append(errorMessage)
+                    persistence.appendMessage(errorMessage, toChatID: chat.id)
                 }
             }
         }

@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct ChatDetailView: View {
     @Environment(ChatViewModelStore.self) private var store
@@ -94,7 +95,8 @@ struct ChatDetailContentView: View {
 }
 
 #Preview {
-    NavigationStack {
-        ChatDetailContentView(viewModel: ChatDetailViewModel(chat: .sample))
+    let persistence = ChatPersistenceService(modelContext: ModelContainer.preview.mainContext)
+    return NavigationStack {
+        ChatDetailContentView(viewModel: ChatDetailViewModel(chat: .sample, persistence: persistence))
     }
 }

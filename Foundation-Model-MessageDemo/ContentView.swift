@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct ContentView: View {
     @Environment(ChatViewModelStore.self) private var chatStore
@@ -38,7 +39,7 @@ struct ContentView: View {
 }
 
 #Preview("With Chats") {
-    let store = ChatViewModelStore()
+    let store = ChatViewModelStore(modelContext: ModelContainer.preview.mainContext)
     store.createChat(title: "SwiftUI 질문")
     store.createChat(title: "두 번째 채팅")
     return ContentView()
@@ -47,5 +48,5 @@ struct ContentView: View {
 
 #Preview("Empty") {
     ContentView()
-        .environment(ChatViewModelStore())
+        .environment(ChatViewModelStore(modelContext: ModelContainer.preview.mainContext))
 }

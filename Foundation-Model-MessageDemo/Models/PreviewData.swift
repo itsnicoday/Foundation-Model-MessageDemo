@@ -6,8 +6,17 @@
 //
 
 import Foundation
+import SwiftData
 
 #if DEBUG
+extension ModelContainer {
+    static var preview: ModelContainer {
+        let schema = Schema([ChatSessionEntity.self, MessageEntity.self])
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        return try! ModelContainer(for: schema, configurations: configuration)
+    }
+}
+
 extension Message {
     static let sampleUser = Message(isUser: true, text: "SwiftUI에서 NavigationSplitView는 어떻게 써?")
     static let sampleAssistant = Message(isUser: false, text: "NavigationSplitView는 사이드바와 디테일 영역을 나눠주는 컨테이너예요. iPad에서는 두 컬럼으로, iPhone에서는 스택으로 표시됩니다.")
