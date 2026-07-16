@@ -26,14 +26,16 @@ open Foundation-Model-MessageDemo.xcodeproj
 
 ## 아키텍처
 
-순수 SwiftUI, 서드파티 의존성 없음. 채팅 화면에는 가벼운 MVVM 계층(`ChatDetailViewModel`)이 있고, 그 외에는 여전히 뷰가 `@State`/`@Binding`으로 상태를 직접 소유합니다. 데이터는 인메모리 전용입니다(앱 재시작 시 모두 사라짐).
+순수 SwiftUI, 서드파티 의존성 없음. 채팅 화면에는 가벼운 MVVM 계층(`ChatDetailViewModel`)이 있고, 채팅 데이터 전체는 `ChatViewModelStore` 하나가 단일 진실 공급원으로 관리합니다. 데이터는 인메모리 전용입니다(앱 재시작 시 모두 사라짐 — 이 부분은 `docs/PLAN.md` Phase 3에 로드맵이 있음).
 
-- `Foundation_Model_MessageDemoApp.swift` — `@main` 진입점, `ContentView`를 로드.
-- `ContentView.swift` — 루트 뷰. `[ChatSession]` 배열과 `selectedChat`을 `@State`로 소유하며, 채팅 데이터의 단일 소스(single source of truth)입니다(`SidebarView`의 채팅 목록/미리보기에도 이 데이터를 사용). `ChatDetailViewModel`의 존재는 **모릅니다** — `ChatDetailView`에 순수 `ChatSession` 값과 `onUpdate: (ChatSession) -> Void` 콜백만 넘기고, `.id(selectedChat.id)`를 붙여서 채팅을 전환할 때마다 새 뷰/뷰모델 인스턴스가 생기도록 합니다. `NavigationSplitView`(사이드바 + 디테일)를 호스팅.
+- `Foundation_Model_MessageDemoApp.swift` — `@main` 진입점. `ChatViewModelStore`를 `@State`로 생성해 `.environment(_:)`로 `ContentView`에 주입.
+- `Stores/ChatViewModelStore.swift` — `@Observable @MainActor` 클래스. 채팅 id별 `ChatDetailViewModel`을 딕셔너리로 캐싱하고, 세션 목록(`chats: [ChatSession]`)은 이 캐시에서 파생되는 계산 프로퍼티입니다(별도 배열로 들고 있지 않음). `createChat(title:)` / `deleteChat(at:)` / `viewModel(for:)`을 제공. 앱이 켜져 있는 동안은 채팅을 전환해도 같은 `ChatDetailViewModel` 인스턴스(와 진행 중인 스트리밍 `Task`)가 그대로 유지됩니다.
+- `ContentView.swift` — 루트 뷰. `@Environment(ChatViewModelStore.self)`로 store를 읽기만 하고, 선택된 채팅의 `ChatSession.ID?`만 `@State`로 로컬 소유. `chats`나 `ChatDetailViewModel` 어느 쪽도 직접 소유하지 않으며, `ChatDetailViewModel` 타입 자체를 **모릅니다**. `NavigationSplitView`(사이드바 + 디테일)를 호스팅.
 - `Models/Message.swift` — `Message` 구조체 (`isUser: Bool`, `text: String`).
-- `Models/ChatSession.swift` — `ChatSession` 구조체 (`id`, `title`, `messages`). 예전에는 `SidebarView.swift`에 인라인으로 정의되어 있었으나 이곳으로 옮김.
-- `ViewModels/ChatDetailViewModel.swift` — `ChatDetailView`가 소유하는 `@Observable @MainActor` 클래스(`init`에서 생성해 `@State`로 보유). `chat`, `inputText`, `isLoading`, private `ChatModelService`, `sendMessage()`를 갖고 있음. `chat`이 바뀔 때마다 `ChatDetailView`의 init에 전달된 `onUpdate` 클로저로 부모에 알림 — 이것이 `ContentView.chats`로 돌아가는 유일한 경로.
-  - 알려진 제약: `ContentView`가 채팅 전환 시 `.id()`로 `ChatDetailView`(와 뷰모델)를 새로 만들기 때문에, 스트리밍 중이거나 입력창에 draft가 남아있는 상태로 다른 채팅으로 이동하면 그 진행 상태는 사라짐 — `onUpdate`로 이미 동기화된 부분만 남음. 채팅 전환 간에도 이 상태를 유지해야 한다면, 채팅 id별 뷰모델 캐시(를 `ContentView`가 아니라 별도 store가 소유하는 형태)를 다음 단계로 검토.
-- `Views/SidebarView.swift` — 채팅 목록(생성/스와이프 삭제). 더 이상 `ChatSession`을 정의하지 않음(`Models/ChatSession.swift` 참고).
-- `Views/ChatDetailView.swift` — 메시지 목록(`ScrollViewReader` + 새 메시지/로딩 상태 변경 시 자동 스크롤) + 입력 바. init에서 `chat: ChatSession`과 `onUpdate`를 받으며, `Binding<ChatSession>`은 사용하지 않음.
+- `Models/ChatSession.swift` — `ChatSession` 구조체 (`id`, `title`, `messages`).
+- `ViewModels/ChatDetailViewModel.swift` — `@Observable @MainActor` 클래스. `chat`, `inputText`, `isLoading`, private `ChatModelService`, `sendMessage()`를 갖고 있음. 이제 뷰가 아니라 `ChatViewModelStore`가 소유(캐싱)하는 주체이며, `chat`이 곧 store가 들고 있는 원본이라 부모에게 변경을 알리는 콜백이 없음.
+- `Views/SidebarView.swift` — 채팅 목록(생성/스와이프 삭제). 선택 상태를 `ChatSession.ID?` 기반 `Binding`으로 받음.
+- `Views/ChatDetailView.swift` — 두 구조체로 분리:
+  - `ChatDetailView` — `chatID: ChatSession.ID`만 받는 얇은 래퍼. `@Environment(ChatViewModelStore.self)`로 store를 읽어 `body`에서 `ChatDetailViewModel`을 조회(⚠️ `@Environment`는 커스텀 `init()` 내부에서는 아직 주입되지 않으므로 반드시 `body`에서 조회해야 함).
+  - `ChatDetailContentView` — 실제 화면 로직(메시지 목록, `ScrollViewReader` 자동 스크롤, 입력 바). `init(viewModel: ChatDetailViewModel)`로 뷰모델을 직접 받음.
 - `Views/Components/MessageView.swift` — 개별 메시지 말풍선. 사용자/어시스턴트 분기 모두 구현되어 있으며, `isLoading`일 때 "생각 중..." 상태도 포함.

@@ -47,15 +47,19 @@ NavigationSplitView
 - [x] 응답 스트리밍 처리 (`ChatModelService.streamResponse`, 첫 조각 도착 시 로딩 인디케이터 → 텍스트로 전환, 이후 누적 텍스트로 갱신)
 - [x] 시뮬레이터에서 빌드 및 동작 확인 (`streamResponse(to:)`가 `Snapshot.content`로 누적 전체 텍스트를 준다는 것 확인, 타입 불일치 수정)
 - [x] 실기기(Apple Intelligence 지원)에서 동작 검증 완료
-- [ ] (알려진 제약) 채팅 이탈 후 복귀 시 모델 컨텍스트 초기화 — 해소 로드맵은 Phase 3 "채팅 영속성 & 모델 컨텍스트 복원" 참고
+- [x] (알려진 제약) 채팅 이탈 후 복귀 시 모델 컨텍스트 초기화 — 앱이 켜져 있는 동안은 Phase 3 "0. 뷰모델 캐싱 계층"으로 해소(2026-07-16). 앱 재시작 후 복원은 Phase 3의 남은 하위 항목(SwiftData·Transcript) 참고
 
 ### Phase 3 — 완성도
 - [ ] 채팅 영속성 & 모델 컨텍스트 복원 (우선순위 순 — "나갔다 들어오면 세션이 끊긴다"는 물리적 한계가 아니라
       지금의 `.id()` 리셋 아키텍처 때문이므로, 앱 실행 중/재시작 후를 나눠서 단계적으로 해소)
-  - [ ] **0. 뷰모델 캐싱 계층**: 채팅 id별로 `ChatDetailViewModel`(과 내부 `LanguageModelSession`)을 계속
-        살려두는 store 도입. 앱이 켜져 있는 동안은 다른 채팅 갔다가 돌아와도 스트리밍/컨텍스트가
-        끊기지 않음 — SwiftData나 별도 저장 없이 가장 저렴하게 해결되는 부분. (Phase 2·3의
-        `ChatDetailViewModel` 항목에서 알려진 제약으로 이미 언급됨)
+  - [x] **0. 뷰모델 캐싱 계층**: ✅ (2026-07-16) `ChatViewModelStore`(`Stores/ChatViewModelStore.swift`) 도입 완료.
+        채팅 id별로 `ChatDetailViewModel`(과 내부 `LanguageModelSession`)을 계속 살려두고, 세션 목록(`chats`)도
+        이 캐시에서 파생시켜 `ContentView`/`SidebarView`가 더 이상 `ChatSession` 배열을 따로 소유하지 않도록
+        통합함. 앱이 켜져 있는 동안은 다른 채팅 갔다가 돌아와도 스트리밍/입력 draft가 끊기지 않음을
+        시뮬레이터에서 수동 검증(스트리밍 중 전환/복귀, 스트리밍 중 삭제 모두 정상). SwiftData나 별도 저장
+        없이 가장 저렴하게 해결되는 부분.
+        스펙: `docs/superpowers/specs/2026-07-16-chat-viewmodel-store-design.md`,
+        계획: `docs/superpowers/plans/2026-07-16-chat-viewmodel-store.md`.
   - [ ] **1. SwiftData로 메시지 영속화**: `ChatSession.messages`를 디스크에 저장해 앱 재시작 후에도
         대화 내역이 화면에 남도록 함. 단, 이것만으로는 화면에 보이는 텍스트만 복원되고 모델 자체의
         컨텍스트는 복원되지 않음.
@@ -68,11 +72,9 @@ NavigationSplitView
         문제가 될 때 추가할 나중 단계 최적화 (지금 단계에서는 우선순위 낮음).
 - [ ] 채팅 제목 자동 생성 (첫 메시지 기반)
 - [x] `ChatSession`을 `Models/`로 이동 (기존 `SidebarView.swift` 내부 정의 제거)
-- [x] `ChatDetailViewModel` 도입 (`@Observable`, `ViewModels/`) — `ChatDetailView`가 직접 소유하고
-      `chat`이 바뀔 때마다 `onUpdate` 콜백으로 `ContentView.chats`에 반영. `ContentView`는
-      `ChatDetailViewModel` 타입을 모르며 `ChatSession` + 콜백만 다룸.
-      (알려진 제약: 다른 채팅으로 이동했다가 돌아오면 `ChatDetailView`가 `.id()` 리셋으로 새로
-      생성되어, 스트리밍 중이던 응답이나 입력 draft는 유지되지 않음 — 필요해지면 뷰모델 캐싱 계층 검토)
+- [x] `ChatDetailViewModel` 도입 (`@Observable`, `ViewModels/`) — 이후 `ChatViewModelStore`(위 Phase 3
+      "0. 뷰모델 캐싱 계층")가 채팅 id별로 인스턴스를 캐싱하는 형태로 발전. `onUpdate` 콜백은 제거되었고,
+      `ContentView`는 여전히 `ChatDetailViewModel` 타입을 모르며 store를 통해서만 간접적으로 다룸.
 - [x] 메시지 목록 자동 스크롤 (`ScrollViewReader`, 새 메시지/로딩 상태 변경 시 하단으로 스크롤)
 
 ## 5. 제약 / 참고
