@@ -53,7 +53,7 @@
 //  Foundation-Model-MessageDemo
 //
 
-import Foundation
+import SwiftUI
 import Observation
 
 @MainActor
