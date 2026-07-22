@@ -16,13 +16,12 @@ final class ChatDetailViewModel {
     var inputText: String = ""
     var isLoading: Bool = false
 
-    private let service: ChatModelService
+    private let service = ChatModelService()
     private let persistence: ChatPersistenceService
 
     init(chat: ChatSession, persistence: ChatPersistenceService) {
         self.chat = chat
         self.persistence = persistence
-        self.service = ChatModelService(transcript: persistence.loadTranscript(forChatID: chat.id))
     }
 
     var unavailableReason: String? { service.unavailableReason }
@@ -58,7 +57,6 @@ final class ChatDetailViewModel {
                 }
                 if let index = assistantIndex {
                     persistence.appendMessage(chat.messages[index], toChatID: chat.id)
-                    persistence.saveTranscript(service.currentTranscript, forChatID: chat.id)
                 }
             } catch {
                 isLoading = false
@@ -66,12 +64,10 @@ final class ChatDetailViewModel {
                 if let index = assistantIndex {
                     chat.messages[index].text = errorText
                     persistence.appendMessage(chat.messages[index], toChatID: chat.id)
-                    persistence.saveTranscript(service.currentTranscript, forChatID: chat.id)
                 } else {
                     let errorMessage = Message(isUser: false, text: errorText)
                     chat.messages.append(errorMessage)
                     persistence.appendMessage(errorMessage, toChatID: chat.id)
-                    persistence.saveTranscript(service.currentTranscript, forChatID: chat.id)
                 }
             }
         }
