@@ -40,14 +40,23 @@ final class ChatModelService {
     var currentTranscript: Transcript? { session?.transcript }
 
     /// 응답을 조각 단위로 스트리밍한다. 각 요소는 "지금까지 생성된 전체 텍스트"(누적 스냅샷)이다.
+    /// 모델이 종료 토큰을 못 내고 같은 구절을 무한 반복하는 경우, 반복이 감지되는 즉시
+    /// 중복분을 잘라내고 스트림을 끝낸다. maximumResponseTokens는 반복이 아닌 다른 형태의
+    /// 폭주 생성에 대비한 최후 안전장치.
     func streamResponse(to prompt: String) -> AsyncThrowingStream<String, Error> {
         let session = activeSession()
+        let options = GenerationOptions(maximumResponseTokens: 1000)
 
         return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    for try await partial in session.streamResponse(to: prompt) {
-                        continuation.yield(partial.content)
+                    for try await partial in session.streamResponse(to: prompt, options: options) {
+                        let text = partial.content
+                        if let trimmed = Self.trimmedIfRepeating(text) {
+                            continuation.yield(trimmed)
+                            break
+                        }
+                        continuation.yield(text)
                     }
                     continuation.finish()
                 } catch {
@@ -56,6 +65,34 @@ final class ChatModelService {
             }
             continuation.onTermination = { _ in task.cancel() }
         }
+    }
+
+    /// 텍스트 끝부분이 같은 구절을 연속 3회 이상 반복하고 있으면, 그 중복분을 제거하고
+    /// (1회만 남기고) 반환한다. 반복이 아니면 nil.
+    private static func trimmedIfRepeating(_ text: String) -> String? {
+        let minUnitLength = 6   // 조사/어미 수준의 짧은 반복은 정상적인 표현일 수 있어 무시
+        let maxUnitLength = 120 // 문장 하나 정도 길이까지만 검사
+        let repeatCountThreshold = 3
+
+        let chars = Array(text)
+        let maxCheckable = min(maxUnitLength, chars.count / repeatCountThreshold)
+        guard maxCheckable >= minUnitLength else { return nil }
+
+        for unitLength in stride(from: maxCheckable, through: minUnitLength, by: -1) {
+            let totalLength = unitLength * repeatCountThreshold
+            let tail = chars.suffix(totalLength)
+            let unit = Array(tail.prefix(unitLength))
+
+            let isRepeating = (1..<repeatCountThreshold).allSatisfy { i in
+                Array(tail.dropFirst(i * unitLength).prefix(unitLength)) == unit
+            }
+
+            if isRepeating {
+                let trimmedChars = chars.prefix(chars.count - unitLength * (repeatCountThreshold - 1))
+                return String(trimmedChars)
+            }
+        }
+        return nil
     }
 
     private func activeSession() -> LanguageModelSession {
