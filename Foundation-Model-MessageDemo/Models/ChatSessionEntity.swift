@@ -11,6 +11,7 @@ final class ChatSessionEntity {
     @Attribute(.unique) var id: UUID
     var title: String
     var createdAt: Date
+    var transcriptData: Data?
 
     @Relationship(deleteRule: .cascade, inverse: \MessageEntity.chat)
     var messages: [MessageEntity] = []

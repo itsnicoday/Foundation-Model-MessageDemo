@@ -14,6 +14,11 @@ import FoundationModels
 final class ChatModelService {
 
     private var session: LanguageModelSession?
+    private let initialTranscript: Transcript?
+
+    init(transcript: Transcript? = nil) {
+        self.initialTranscript = transcript
+    }
 
     /// 모델 사용 불가 사유. 사용 가능하면 nil.
     var unavailableReason: String? {
@@ -30,6 +35,9 @@ final class ChatModelService {
             return "지금은 모델을 사용할 수 없어요."
         }
     }
+
+    /// 세션이 한 번이라도 만들어졌으면 현재 대화 맥락. 모델을 아직 호출한 적 없으면 nil.
+    var currentTranscript: Transcript? { session?.transcript }
 
     /// 응답을 조각 단위로 스트리밍한다. 각 요소는 "지금까지 생성된 전체 텍스트"(누적 스냅샷)이다.
     func streamResponse(to prompt: String) -> AsyncThrowingStream<String, Error> {
@@ -51,9 +59,13 @@ final class ChatModelService {
     }
 
     private func activeSession() -> LanguageModelSession {
-        let session = self.session ?? LanguageModelSession(
-            instructions: "당신은 친절한 어시스턴트입니다. 한국어로 간결하게 답하세요."
-        )
+        if let session {
+            return session
+        }
+        let session = initialTranscript.map { LanguageModelSession(transcript: $0) }
+            ?? LanguageModelSession(
+                instructions: "당신은 친절한 어시스턴트입니다. 한국어로 간결하게 답하세요."
+            )
         self.session = session
         return session
     }
