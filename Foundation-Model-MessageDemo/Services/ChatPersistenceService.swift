@@ -5,7 +5,6 @@
 
 import Foundation
 import SwiftData
-import FoundationModels
 
 @MainActor
 final class ChatPersistenceService {
@@ -45,17 +44,6 @@ final class ChatPersistenceService {
         let messageEntity = MessageEntity(id: message.id, isUser: message.isUser, text: message.text)
         messageEntity.chat = chatEntity
         chatEntity.messages.append(messageEntity)
-        saveIfNeeded()
-    }
-
-    func loadTranscript(forChatID chatID: ChatSession.ID) -> Transcript? {
-        guard let entity = fetchEntity(id: chatID), let data = entity.transcriptData else { return nil }
-        return try? JSONDecoder().decode(Transcript.self, from: data)
-    }
-
-    func saveTranscript(_ transcript: Transcript?, forChatID chatID: ChatSession.ID) {
-        guard let transcript, let entity = fetchEntity(id: chatID) else { return }
-        entity.transcriptData = try? JSONEncoder().encode(transcript)
         saveIfNeeded()
     }
 
