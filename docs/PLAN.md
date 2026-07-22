@@ -1,7 +1,7 @@
 # Foundation-Model-MessageDemo 기획서
 
 > Apple FoundationModels(온디바이스 LLM)를 활용한 채팅 앱 데모.
-> 최종 수정: 2026-07-16
+> 최종 수정: 2026-07-23
 
 ## 1. 목표
 
@@ -20,7 +20,7 @@
 | FoundationModels 응답 생성 | ✅ 완료 (실기기 검증됨) |
 | 응답 스트리밍 (타자 치듯 출력) | ✅ 완료 (실기기 검증됨) |
 | 로딩 상태 표시 ("생각 중...") | ✅ 완료 |
-| 채팅 영속성 (재시작 후 유지) | ❌ 미구현 |
+| 채팅 영속성 (재시작 후 유지) | ✅ 완료 (SwiftData, 모델 컨텍스트 복원은 별도) |
 
 ## 3. 화면 구성
 
@@ -60,9 +60,16 @@ NavigationSplitView
         없이 가장 저렴하게 해결되는 부분.
         스펙: `docs/superpowers/specs/2026-07-16-chat-viewmodel-store-design.md`,
         계획: `docs/superpowers/plans/2026-07-16-chat-viewmodel-store.md`.
-  - [ ] **1. SwiftData로 메시지 영속화**: `ChatSession.messages`를 디스크에 저장해 앱 재시작 후에도
-        대화 내역이 화면에 남도록 함. 단, 이것만으로는 화면에 보이는 텍스트만 복원되고 모델 자체의
-        컨텍스트는 복원되지 않음.
+  - [x] **1. SwiftData로 메시지 영속화**: ✅ (2026-07-16) `ChatSessionEntity`/`MessageEntity`(`@Model`)와
+        `ChatPersistenceService`(`Services/ChatPersistenceService.swift`) 추가, `ChatViewModelStore`/
+        `ChatDetailViewModel`을 여기 연결. 앱 시작 시 `ChatViewModelStore.init(modelContext:)`가
+        `loadAllChats()`로 저장된 대화를 전부 복원하고, 사용자 메시지 전송 직후·어시스턴트 응답
+        완료/에러 직후 체크포인트마다 `appendMessage`로 저장(스트리밍 중간 텍스트는 저장 안 함).
+        `Foundation_Model_MessageDemoApp.swift`가 `ModelContainer`를 생성(실패 시 인메모리로 폴백).
+        단, 이것만으로는 화면에 보이는 텍스트만 복원되고 모델 자체의 컨텍스트는 복원되지 않음 —
+        아래 "2. Transcript 저장/복원" 참고.
+        스펙: `docs/superpowers/specs/2026-07-16-swiftdata-persistence-design.md`,
+        계획: `docs/superpowers/plans/2026-07-16-swiftdata-persistence.md`.
   - [ ] **2. `Transcript` 저장/복원**: FoundationModels의 `Transcript`(Codable 여부·정확한 API는 베타라
         Xcode에서 재확인 필요)를 SwiftData 필드로 같이 저장했다가, 채팅 재진입 시
         `LanguageModelSession(transcript:)` 형태로 재구성 — 앱 재시작 후에도 모델이 이전 대화를
