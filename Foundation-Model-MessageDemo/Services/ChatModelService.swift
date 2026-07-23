@@ -45,7 +45,7 @@ final class ChatModelService {
     /// 폭주 생성에 대비한 최후 안전장치.
     func streamResponse(to prompt: String) -> AsyncThrowingStream<String, Error> {
         let session = activeSession()
-        let options = GenerationOptions(maximumResponseTokens: 1000)
+        let options = GenerationOptions(maximumResponseTokens: 2000)
 
         return AsyncThrowingStream { continuation in
             let task = Task {
