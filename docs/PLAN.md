@@ -20,7 +20,7 @@
 | FoundationModels 응답 생성 | ✅ 완료 (실기기 검증됨) |
 | 응답 스트리밍 (타자 치듯 출력) | ✅ 완료 (실기기 검증됨) |
 | 로딩 상태 표시 ("생각 중...") | ✅ 완료 |
-| 채팅 영속성 (재시작 후 유지) | ✅ 완료 (SwiftData, 모델 컨텍스트 복원은 별도) |
+| 채팅 영속성 (재시작 후 유지) | ✅ 완료 (SwiftData + Transcript 복원, 모델 컨텍스트까지 유지) |
 
 ## 3. 화면 구성
 
@@ -70,10 +70,15 @@ NavigationSplitView
         아래 "2. Transcript 저장/복원" 참고.
         스펙: `docs/superpowers/specs/2026-07-16-swiftdata-persistence-design.md`,
         계획: `docs/superpowers/plans/2026-07-16-swiftdata-persistence.md`.
-  - [ ] **2. `Transcript` 저장/복원**: FoundationModels의 `Transcript`(Codable 여부·정확한 API는 베타라
-        Xcode에서 재확인 필요)를 SwiftData 필드로 같이 저장했다가, 채팅 재진입 시
-        `LanguageModelSession(transcript:)` 형태로 재구성 — 앱 재시작 후에도 모델이 이전 대화를
-        "기억"하게 하는 더 충실한 방법.
+  - [x] **2. `Transcript` 저장/복원**: ✅ (2026-07-23) `ChatSessionEntity.transcriptData`에 `Transcript`를
+        인코딩해 저장, `ChatDetailViewModel` 생성 시 `ChatModelService(transcript:)`로 복원해
+        `LanguageModelSession(transcript:)`을 재구성. 사용자 메시지 전송/어시스턴트 응답 완료·에러
+        체크포인트마다 `saveTranscript` 호출. 실기기에서 앱 재시작 후에도 모델이 이전 대화 맥락을
+        기억함을 수동 검증 완료. 구현 도중 발견된 무관한 크래시("Illegal attempt to insert a model
+        in to a different model context" — `.modelContainer()` Scene 미등록이 원인, `fix: cb3d89d`로 해결)와
+        응답 반복 무한루프 버그(`fix: 92780fa`)도 함께 수정됨.
+        스펙: `docs/superpowers/specs/2026-07-23-transcript-persistence-design.md`,
+        계획: `docs/superpowers/plans/2026-07-23-transcript-persistence.md`.
   - [ ] **3. 롤링 요약(대화 압축)**: 대화가 길어져 컨텍스트 윈도우 한계에 걸리기 시작하면, 일정 턴마다
         모델에게 스스로 요약을 시켜 그 요약을 다음 세션의 instructions로 주입. 대화 길이가 실제
         문제가 될 때 추가할 나중 단계 최적화 (지금 단계에서는 우선순위 낮음).
